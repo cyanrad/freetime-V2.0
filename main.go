@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/csv"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,6 +30,15 @@ func main() {
 
 	flattenedSchedule := lo.Flatten(scheduleData)
 	byDayPeriodGroups := lo.GroupBy(flattenedSchedule, func(p Period) int { return p.day })
+
+	for _, group := range byDayPeriodGroups {
+		start, end := unzipPeriods(group)
+		sort.Ints(start)
+		sort.Ints(end)
+		fmt.Println(group[0].day)
+		fmt.Println(start)
+		fmt.Println(end)
+	}
 
 	// no need to sort yet
 	// for _, group := range byDayPeriodGroups {
@@ -86,4 +97,16 @@ func parsePeriodCsvFile(fileName string) []Period {
 	}
 
 	return parsedData
+}
+
+func unzipPeriods(periods []Period) ([]int, []int) {
+	start := []int{}
+	end := []int{}
+
+	for _, p := range periods {
+		start = append(start, p.start)
+		end = append(end, p.end)
+	}
+
+	return start, end
 }
