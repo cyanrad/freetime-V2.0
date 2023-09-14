@@ -32,21 +32,9 @@ func main() {
 	byDayPeriodGroups := lo.GroupBy(flattenedSchedule, func(p Period) int { return p.day })
 
 	for _, group := range byDayPeriodGroups {
-		start, end := unzipPeriods(group)
-		sort.Ints(start)
-		sort.Ints(end)
-		fmt.Println(group[0].day)
-		fmt.Println(start)
-		fmt.Println(end)
+		fmt.Println(compressPeriodGroup(group))
+		// inverse the groups here as well
 	}
-
-	// no need to sort yet
-	// for _, group := range byDayPeriodGroups {
-	// 	sort.Slice(group, func(i, j int) bool {
-	// 		return group[i].start < group[j].start
-	// 	})
-	// }
-
 }
 
 func initArgs() ([]string, string) {
@@ -97,6 +85,54 @@ func parsePeriodCsvFile(fileName string) []Period {
 	}
 
 	return parsedData
+}
+
+func compressPeriodGroup(group []Period) []Period {
+	start, end := unzipPeriods(group)
+	sort.Ints(start)
+	sort.Ints(end)
+
+	compressed := []Period{} // the final compressed list
+	periodStart := -1        // the time a compressed preiod starts
+	day := group[0].day      // just the group day
+	counter := 0             // counter to check when a compressed preiod is over
+
+	for i, j := 0, 0; i < len(start); {
+		if start[i] < end[j] {
+			if periodStart == -1 {
+				periodStart = start[i]
+			}
+			counter++
+			i++
+		} else if start[i] == end[j] {
+			i++
+			j++
+		} else {
+			counter--
+
+			if counter == 0 {
+				compressed = append(compressed, Period{
+					day:   day,
+					start: periodStart,
+					end:   end[j],
+				})
+				periodStart = -1 // resetting period start
+			}
+
+			j++
+		}
+	}
+
+	// compressing any remaining periods
+	if counter > 0 {
+		compressed = append(compressed, Period{
+			day:   day,
+			start: periodStart,
+			end:   end[len(end)-1],
+		})
+	}
+
+	return compressed
 }
 
 func unzipPeriods(periods []Period) ([]int, []int) {
