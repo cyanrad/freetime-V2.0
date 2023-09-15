@@ -1,14 +1,10 @@
 package main
 
 import (
-	"encoding/csv"
-	"flag"
-	"fmt"
+	"io"
 	"log"
 	"os"
 	"sort"
-	"strconv"
-	"strings"
 
 	lo "github.com/samber/lo"
 )
@@ -20,70 +16,46 @@ type Period struct {
 }
 
 func main() {
-	inputFiles, _ := initArgs()
+	inputFiles, outputFile := initArgs()
 
-	scheduleData := [][]Period{}
+	scheduleData := []Period{}
 
 	for _, f := range inputFiles {
-		scheduleData = append(scheduleData, parsePeriodCsvFile(f))
+		csvFile, err := os.Open(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		scheduleData = append(scheduleData, csvToPeriods(csvFile)...)
+
+		csvFile.Close()
 	}
 
-	flattenedSchedule := lo.Flatten(scheduleData)
-	byDayPeriodGroups := lo.GroupBy(flattenedSchedule, func(p Period) int { return p.day })
+	byDayPeriodGroups := lo.GroupBy(scheduleData, func(p Period) int { return p.day })
 
+	// initializing the writer of the output free time data (file|stdout)
+	var w io.Writer
+	if outputFile != "" {
+		f, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE, 0222)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+
+		w = f
+	} else {
+		w = os.Stdout
+	}
+
+	freeTime := []Period{}
 	for _, group := range byDayPeriodGroups {
-		fmt.Println(reverse(compressPeriodGroup(group)))
-	}
-}
-
-func initArgs() ([]string, string) {
-	inputFilesString := ""
-	flag.StringVar(&inputFilesString, "f", "",
-		"input schedule csv files (expected format: \"file1, file2\")")
-	outputFile := ""
-	flag.StringVar(&outputFile, "o", "", "output file")
-	flag.Parse()
-
-	inputFiles := strings.Split(inputFilesString, ", ")
-	return inputFiles, outputFile
-}
-
-func parsePeriodCsvFile(fileName string) []Period {
-	fReader, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal(err)
+		freeTime = append(
+			freeTime,
+			reverse(compressPeriodGroup(group))...,
+		)
 	}
 
-	r := csv.NewReader(fReader)
-	parsedValues, err := r.ReadAll()
-	if err != nil {
-		log.Println(err)
-	}
-
-	parsedData := []Period{}
-
-	for _, val := range parsedValues {
-		day, err := strconv.Atoi(val[0])
-		if err != nil {
-			log.Fatal(err)
-		}
-		start, err := strconv.Atoi(val[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-		end, err := strconv.Atoi(val[2])
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		parsedData = append(parsedData, Period{
-			day:   day,
-			start: start,
-			end:   end,
-		})
-	}
-
-	return parsedData
+	periodsToCsv(freeTime, w)
 }
 
 func compressPeriodGroup(group []Period) []Period {
