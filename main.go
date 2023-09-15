@@ -32,8 +32,7 @@ func main() {
 	byDayPeriodGroups := lo.GroupBy(flattenedSchedule, func(p Period) int { return p.day })
 
 	for _, group := range byDayPeriodGroups {
-		fmt.Println(compressPeriodGroup(group))
-		// inverse the groups here as well
+		fmt.Println(reverse(compressPeriodGroup(group)))
 	}
 }
 
@@ -145,4 +144,36 @@ func unzipPeriods(periods []Period) ([]int, []int) {
 	}
 
 	return start, end
+}
+
+func reverse(group []Period) []Period {
+	freeTime := []Period{}
+	start := 0
+	i := 0
+
+	if group[0].start == 0 {
+		start = group[0].end
+		i++
+	}
+
+	for ; i < len(group); i++ {
+		freeTime = append(freeTime, Period{
+			day:   group[i].day,
+			start: start,
+			end:   group[i].start,
+		})
+
+		start = group[i].end
+	}
+
+	i--
+	if start != 2460 {
+		freeTime = append(freeTime, Period{
+			day:   group[i].day,
+			start: start,
+			end:   2460,
+		})
+	}
+
+	return freeTime
 }
